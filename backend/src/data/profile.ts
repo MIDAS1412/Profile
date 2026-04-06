@@ -1,8 +1,8 @@
 export const profilePayload = {
   coverHeadline: [
-    'Mình không muốn profile bị nhạt',
-    'thì mình code luôn một trang riêng',
-    'để nhìn vào là thấy chất của mình',
+    'Minh khong muon profile bi nhat',
+    'thi minh code luon mot trang rieng',
+    'de nhin vao la thay chat cua minh',
   ],
   identity: {
     name: 'MIDAS1412',
@@ -15,6 +15,26 @@ export const profilePayload = {
     availability: 'Open for interesting builds and collabs',
     avatarUrl: 'https://github.com/MIDAS1412.png',
     locationHint: 'Use the live map for current location',
+  },
+  location: {
+    label: 'Ho Chi Minh City',
+    description: 'Saved profile location editable from the admin page.',
+    latitude: 10.77689,
+    longitude: 106.700806,
+  },
+  spotlight: {
+    eyebrow: 'Featured image',
+    title: 'Tap the image to open a richer profile popup.',
+    blurb: 'Use this card for a portrait, workspace shot, project visual, or anything that should open into more detail.',
+    imageUrl: 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=1200&q=80',
+    alt: 'Workspace setup with laptop and desk light',
+    modalTitle: 'More about this scene',
+    modalDescription: 'This popup is fully editable from the admin page. You can change the image, title, description, and small fact blocks without touching the code.',
+    facts: [
+      { label: 'Mood', value: 'Clean, dark, focused' },
+      { label: 'Use case', value: 'Personal intro or featured project' },
+      { label: 'Editable', value: 'Image, text, and popup facts' },
+    ],
   },
   quickFacts: [
     'Responsive layout',

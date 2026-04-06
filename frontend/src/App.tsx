@@ -1,4 +1,5 @@
 import { Route, Routes } from 'react-router-dom'
+import { AdminPage } from './pages/AdminPage'
 import { MapPage } from './pages/MapPage'
 import { ProfilePage } from './pages/ProfilePage'
 
@@ -7,6 +8,7 @@ export default function App() {
     <Routes>
       <Route path="/" element={<ProfilePage />} />
       <Route path="/map" element={<MapPage />} />
+      <Route path="/admin" element={<AdminPage />} />
     </Routes>
   )
 }

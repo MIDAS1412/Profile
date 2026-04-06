@@ -15,6 +15,7 @@ export function ProfilePage() {
   const { data, loading, error } = useProfile()
   const [accent, setAccent] = useState<(typeof accentModes)[number]['key']>('ember')
   const [copied, setCopied] = useState(false)
+  const [isSpotlightOpen, setIsSpotlightOpen] = useState(false)
 
   const localTime = useMemo(() => {
     if (!data) {
@@ -56,6 +57,7 @@ export function ProfilePage() {
             <a href="#journey">Journey</a>
             <a href="#work">Work</a>
             <Link to="/map">Map</Link>
+            <Link to="/admin">Admin</Link>
           </nav>
         </header>
 
@@ -213,7 +215,23 @@ export function ProfilePage() {
                 </div>
               </div>
 
-              <MapPreviewCard />
+              <div className="side-stack">
+                <button
+                  className="spotlight-card"
+                  onClick={() => setIsSpotlightOpen(true)}
+                  type="button"
+                >
+                  <img alt={data.spotlight.alt} src={data.spotlight.imageUrl} />
+                  <div className="spotlight-copy">
+                    <p className="card-kicker">{data.spotlight.eyebrow}</p>
+                    <h3>{data.spotlight.title}</h3>
+                    <p>{data.spotlight.blurb}</p>
+                    <span>Click image to open popup</span>
+                  </div>
+                </button>
+
+                <MapPreviewCard />
+              </div>
             </section>
 
             <section className="content-card card" id="journey">
@@ -341,8 +359,50 @@ export function ProfilePage() {
                   </a>
                 ))}
                 <Link to="/map">Map page</Link>
+                <Link to="/admin">Admin page</Link>
               </div>
             </footer>
+
+            {isSpotlightOpen && (
+              <div
+                aria-modal="true"
+                className="image-popup-backdrop"
+                onClick={() => setIsSpotlightOpen(false)}
+                role="dialog"
+              >
+                <div
+                  className="image-popup-panel"
+                  onClick={(event) => event.stopPropagation()}
+                >
+                  <button
+                    aria-label="Close popup"
+                    className="image-popup-close"
+                    onClick={() => setIsSpotlightOpen(false)}
+                    type="button"
+                  >
+                    Close
+                  </button>
+                  <div className="image-popup-grid">
+                    <div className="image-popup-media">
+                      <img alt={data.spotlight.alt} src={data.spotlight.imageUrl} />
+                    </div>
+                    <div className="image-popup-content">
+                      <p className="card-kicker">{data.spotlight.eyebrow}</p>
+                      <h2>{data.spotlight.modalTitle}</h2>
+                      <p>{data.spotlight.modalDescription}</p>
+                      <div className="image-popup-facts">
+                        {data.spotlight.facts.map((fact) => (
+                          <div className="image-popup-fact" key={`${fact.label}-${fact.value}`}>
+                            <span>{fact.label}</span>
+                            <strong>{fact.value}</strong>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </>
         )}
       </div>

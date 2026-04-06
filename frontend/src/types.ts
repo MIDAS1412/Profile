@@ -38,6 +38,29 @@ export type SocialItem = {
   href: string
 }
 
+export type SpotlightFact = {
+  label: string
+  value: string
+}
+
+export type SpotlightImage = {
+  eyebrow: string
+  title: string
+  blurb: string
+  imageUrl: string
+  alt: string
+  modalTitle: string
+  modalDescription: string
+  facts: SpotlightFact[]
+}
+
+export type SavedLocation = {
+  label: string
+  description: string
+  latitude: number
+  longitude: number
+}
+
 export type ProfileResponse = {
   coverHeadline: string[]
   identity: {
@@ -52,6 +75,8 @@ export type ProfileResponse = {
     avatarUrl: string
     locationHint: string
   }
+  location: SavedLocation
+  spotlight: SpotlightImage
   quickFacts: string[]
   metrics: ProfileMetric[]
   focusAreas: FocusArea[]
