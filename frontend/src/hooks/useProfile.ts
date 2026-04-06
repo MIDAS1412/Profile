@@ -1,40 +1,30 @@
 import { useEffect, useState } from 'react'
-import { PROFILE_UPDATED_EVENT, getStoredProfile } from '../lib/profileDraft'
+import { PROFILE_UPDATED_EVENT } from '../lib/profileDraft'
 import type { ProfileResponse } from '../types'
 
 type FetchState = {
-  baseData: ProfileResponse | null
   data: ProfileResponse | null
   loading: boolean
   error: string | null
-  hasLocalOverride: boolean
 }
 
 export function useProfile() {
   const [state, setState] = useState<FetchState>({
-    baseData: null,
     data: null,
     loading: true,
     error: null,
-    hasLocalOverride: false,
   })
 
   useEffect(() => {
     let active = true
 
-    const applyStoredData = (baseData: ProfileResponse) => {
-      const storedProfile = getStoredProfile()
-
-      return {
-        baseData,
-        data: storedProfile ?? baseData,
-        loading: false,
-        error: null,
-        hasLocalOverride: storedProfile !== null,
-      }
-    }
-
     const loadProfile = async () => {
+      setState((current) => ({
+        ...current,
+        loading: true,
+        error: null,
+      }))
+
       try {
         const response = await fetch('/api/profile')
 
@@ -42,19 +32,24 @@ export function useProfile() {
           throw new Error(`API returned ${response.status}`)
         }
 
-        const payload = (await response.json()) as ProfileResponse
+        const payload = await response.json()
+        const { _meta: _discard, ...profile } = payload as ProfileResponse & {
+          _meta?: unknown
+        }
 
         if (active) {
-          setState(applyStoredData(payload))
+          setState({
+            data: profile,
+            loading: false,
+            error: null,
+          })
         }
       } catch (error) {
         if (active) {
           setState({
-            baseData: null,
             data: null,
             loading: false,
             error: error instanceof Error ? error.message : 'Unknown error',
-            hasLocalOverride: false,
           })
         }
       }
@@ -63,13 +58,7 @@ export function useProfile() {
     loadProfile()
 
     const syncStoredProfile = () => {
-      setState((current) => {
-        if (!current.baseData) {
-          return current
-        }
-
-        return applyStoredData(current.baseData)
-      })
+      loadProfile()
     }
 
     window.addEventListener(PROFILE_UPDATED_EVENT, syncStoredProfile)

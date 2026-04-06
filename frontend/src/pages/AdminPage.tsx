@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Shell } from '../components/Shell'
-import { clearStoredProfile, saveStoredProfile } from '../lib/profileDraft'
+import { notifyProfileUpdated } from '../lib/profileDraft'
 import { useProfile } from '../hooks/useProfile'
 import type { ProfileResponse, SpotlightFact } from '../types'
 
@@ -36,11 +36,18 @@ function factsFromLines(value: string) {
     .filter((item) => item.label && item.value)
 }
 
+function stripProfileMeta(payload: ProfileResponse & { _meta?: unknown }) {
+  const { _meta: _discard, ...profile } = payload
+
+  return profile as ProfileResponse
+}
+
 export function AdminPage() {
-  const { data, baseData, loading, error, hasLocalOverride } = useProfile()
+  const { data, loading, error } = useProfile()
   const [form, setForm] = useState<ProfileResponse | null>(null)
   const [status, setStatus] = useState<string | null>(null)
   const [locating, setLocating] = useState(false)
+  const [saving, setSaving] = useState(false)
 
   useEffect(() => {
     if (data) {
@@ -52,23 +59,66 @@ export function AdminPage() {
     setForm((current) => (current ? updater(current) : current))
   }
 
-  const saveChanges = () => {
+  const saveChanges = async () => {
     if (!form) {
       return
     }
 
-    saveStoredProfile(form)
-    setStatus('Saved to this browser. Profile and map pages now use the updated draft.')
+    setSaving(true)
+
+    try {
+      const response = await fetch('/api/profile', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(form),
+      })
+
+      if (!response.ok) {
+        const payload = (await response.json()) as { message?: string }
+
+        throw new Error(payload.message ?? `API returned ${response.status}`)
+      }
+
+      const savedProfile = stripProfileMeta(
+        (await response.json()) as ProfileResponse & { _meta?: unknown },
+      )
+      setForm(savedProfile)
+      notifyProfileUpdated()
+      setStatus('Saved to MongoDB through the backend API.')
+    } catch (saveError) {
+      setStatus(saveError instanceof Error ? saveError.message : 'Could not save profile.')
+    } finally {
+      setSaving(false)
+    }
   }
 
-  const resetChanges = () => {
-    if (!baseData) {
-      return
-    }
+  const resetChanges = async () => {
+    setSaving(true)
 
-    clearStoredProfile()
-    setForm(baseData)
-    setStatus('Reset to API defaults.')
+    try {
+      const response = await fetch('/api/profile/reset', {
+        method: 'POST',
+      })
+
+      if (!response.ok) {
+        const payload = (await response.json()) as { message?: string }
+
+        throw new Error(payload.message ?? `API returned ${response.status}`)
+      }
+
+      const defaultProfile = stripProfileMeta(
+        (await response.json()) as ProfileResponse & { _meta?: unknown },
+      )
+      setForm(defaultProfile)
+      notifyProfileUpdated()
+      setStatus('Reset profile document back to the default Mongo seed.')
+    } catch (resetError) {
+      setStatus(resetError instanceof Error ? resetError.message : 'Could not reset profile.')
+    } finally {
+      setSaving(false)
+    }
   }
 
   const copyJson = async () => {
@@ -148,19 +198,19 @@ export function AdminPage() {
                 <p className="card-kicker">Editor status</p>
                 <h1>One place to edit text, image popup, and saved location.</h1>
                 <p className="hero-bio">
-                  This admin page stores your draft in the current browser, so you can
-                  tweak the public profile without touching code every time.
+                  This admin page now saves through the backend API, so your profile can
+                  persist in MongoDB instead of only living inside one browser.
                 </p>
               </div>
 
               <div className="admin-badges">
-                <span>{hasLocalOverride ? 'Using local draft' : 'Using API defaults'}</span>
-                <span>Saved in this browser only</span>
+                <span>Mongo-backed admin flow</span>
+                <span>Save and reset go through /api/profile</span>
               </div>
 
               <div className="hero-actions">
                 <button className="primary-button" onClick={saveChanges} type="button">
-                  Save changes
+                  {saving ? 'Saving...' : 'Save changes'}
                 </button>
                 <button className="ghost-button" onClick={resetChanges} type="button">
                   Reset to default
