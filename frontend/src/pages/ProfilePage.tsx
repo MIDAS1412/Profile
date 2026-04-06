@@ -77,76 +77,113 @@ export function ProfilePage() {
 
         {data && !loading && !error && (
           <>
-            <section className="hero-grid" id="overview">
-              <article className="hero-card card">
-                <div className="hero-copy">
-                  <p className="card-kicker">Digital profile</p>
-                  <h1>{data.identity.name}</h1>
-                  <p className="hero-role">{data.identity.role}</p>
-                  <p className="hero-tagline">{data.identity.tagline}</p>
-                  <p className="hero-bio">{data.identity.bio}</p>
+            <section className="reel-stage" id="overview">
+              <div className="reel-caption">
+                {data.coverHeadline.map((line) => (
+                  <p key={line}>{line}</p>
+                ))}
+              </div>
+
+              <article className="showcase-browser">
+                <div className="browser-bar">
+                  <div className="browser-dots">
+                    <span />
+                    <span />
+                    <span />
+                  </div>
+                  <div className="browser-address">midas-profile.vercel.app</div>
                 </div>
 
-                <div className="hero-actions">
-                  <a className="primary-button" href={`mailto:${data.identity.email}`}>
-                    Contact now
-                  </a>
-                  <Link className="ghost-button" to="/map">
-                    Open live map
-                  </Link>
-                  <button className="ghost-button" onClick={handleCopyEmail} type="button">
-                    {copied ? 'Email copied' : 'Copy email'}
-                  </button>
+                <div className="showcase-grid">
+                  <div className="showcase-main">
+                    <p className="card-kicker">Profile site</p>
+                    <h1>{data.identity.name}</h1>
+                    <p className="hero-role">{data.identity.role}</p>
+                    <p className="hero-tagline">{data.identity.tagline}</p>
+                    <p className="hero-bio">{data.identity.bio}</p>
+
+                    <div className="hero-actions">
+                      <a className="primary-button" href={`mailto:${data.identity.email}`}>
+                        Contact now
+                      </a>
+                      <Link className="ghost-button" to="/map">
+                        Open live map
+                      </Link>
+                      <button className="ghost-button" onClick={handleCopyEmail} type="button">
+                        {copied ? 'Email copied' : 'Copy email'}
+                      </button>
+                    </div>
+
+                    <div className="fact-pills">
+                      {data.quickFacts.map((fact) => (
+                        <span key={fact}>{fact}</span>
+                      ))}
+                    </div>
+                  </div>
+
+                  <aside className="showcase-side">
+                    <div className="identity-card card">
+                      <div className="identity-header">
+                        <img alt={data.identity.handle} src={data.identity.avatarUrl} />
+                        <div>
+                          <p className="card-kicker">Handle</p>
+                          <h2>{data.identity.handle}</h2>
+                        </div>
+                      </div>
+
+                      <div className="identity-details">
+                        <div>
+                          <span>Timezone</span>
+                          <strong>{data.identity.timezone}</strong>
+                        </div>
+                        <div>
+                          <span>Local time</span>
+                          <strong>{localTime}</strong>
+                        </div>
+                        <div>
+                          <span>Availability</span>
+                          <strong>{data.identity.availability}</strong>
+                        </div>
+                        <div>
+                          <span>Location hint</span>
+                          <strong>{data.identity.locationHint}</strong>
+                        </div>
+                      </div>
+
+                      <div className="theme-switcher">
+                        {accentModes.map((mode) => (
+                          <button
+                            className={mode.key === accent ? 'theme-chip active' : 'theme-chip'}
+                            key={mode.key}
+                            onClick={() => setAccent(mode.key)}
+                            type="button"
+                          >
+                            {mode.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="showcase-metric-strip">
+                      {data.metrics.slice(0, 2).map((metric) => (
+                        <div className="showcase-metric" key={metric.label}>
+                          <span>{metric.label}</span>
+                          <strong>{metric.value}</strong>
+                        </div>
+                      ))}
+                    </div>
+                  </aside>
                 </div>
 
-                <div className="fact-pills">
-                  {data.quickFacts.map((fact) => (
-                    <span key={fact}>{fact}</span>
-                  ))}
+                <div className="floating-note left">
+                  <span>Now showing</span>
+                  <strong>Profile + map + backend</strong>
+                </div>
+                <div className="floating-note right">
+                  <span>Inspired by short-form reel layouts</span>
+                  <strong>Top caption, centered screen, black stage</strong>
                 </div>
               </article>
-
-              <aside className="identity-card card">
-                <div className="identity-header">
-                  <img alt={data.identity.handle} src={data.identity.avatarUrl} />
-                  <div>
-                    <p className="card-kicker">Handle</p>
-                    <h2>{data.identity.handle}</h2>
-                  </div>
-                </div>
-
-                <div className="identity-details">
-                  <div>
-                    <span>Timezone</span>
-                    <strong>{data.identity.timezone}</strong>
-                  </div>
-                  <div>
-                    <span>Local time</span>
-                    <strong>{localTime}</strong>
-                  </div>
-                  <div>
-                    <span>Availability</span>
-                    <strong>{data.identity.availability}</strong>
-                  </div>
-                  <div>
-                    <span>Location hint</span>
-                    <strong>{data.identity.locationHint}</strong>
-                  </div>
-                </div>
-
-                <div className="theme-switcher">
-                  {accentModes.map((mode) => (
-                    <button
-                      className={mode.key === accent ? 'theme-chip active' : 'theme-chip'}
-                      key={mode.key}
-                      onClick={() => setAccent(mode.key)}
-                      type="button"
-                    >
-                      {mode.label}
-                    </button>
-                  ))}
-                </div>
-              </aside>
             </section>
 
             <section className="metric-grid">

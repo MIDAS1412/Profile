@@ -39,6 +39,7 @@ export type SocialItem = {
 }
 
 export type ProfileResponse = {
+  coverHeadline: string[]
   identity: {
     name: string
     handle: string

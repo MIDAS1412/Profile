@@ -1,4 +1,9 @@
 export const profilePayload = {
+  coverHeadline: [
+    'Mình không muốn profile bị nhạt',
+    'thì mình code luôn một trang riêng',
+    'để nhìn vào là thấy chất của mình',
+  ],
   identity: {
     name: 'MIDAS1412',
     handle: '@MIDAS1412',
