@@ -1,14 +1,12 @@
-import { Route, Routes } from 'react-router-dom'
-import { AdminPage } from './pages/AdminPage'
-import { MapPage } from './pages/MapPage'
+import { ADMIN_ROUTE, AdminPage } from './pages/AdminPage'
 import { ProfilePage } from './pages/ProfilePage'
 
 export default function App() {
-  return (
-    <Routes>
-      <Route path="/" element={<ProfilePage />} />
-      <Route path="/map" element={<MapPage />} />
-      <Route path="/admin" element={<AdminPage />} />
-    </Routes>
-  )
+  const normalizedPath = window.location.pathname.replace(/\/+$/, '') || '/'
+
+  if (normalizedPath === ADMIN_ROUTE) {
+    return <AdminPage />
+  }
+
+  return <ProfilePage />
 }

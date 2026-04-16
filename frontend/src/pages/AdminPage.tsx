@@ -1,39 +1,46 @@
-import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { type FormEvent, useEffect, useState } from 'react'
 import { Shell } from '../components/Shell'
-import { notifyProfileUpdated } from '../lib/profileDraft'
-import { useProfile } from '../hooks/useProfile'
-import type { ProfileResponse, SpotlightFact } from '../types'
+import { buildApiUrl } from '../config/api'
+import type { ProfileApiResponse, ProfileResponse } from '../types'
 
-function toLines(items: string[]) {
-  return items.join('\n')
+export const ADMIN_ROUTE = '/admin-midas-1420'
+
+const ADMIN_TOKEN_STORAGE_KEY = 'midas-profile-admin-token'
+
+type StatusMessage = {
+  tone: 'success' | 'error'
+  message: string
 }
 
-function fromLines(value: string) {
-  return value
-    .split('\n')
-    .map((item) => item.trim())
-    .filter(Boolean)
+type AdminSessionResponse = {
+  ok: true
+  email: string
+  expiresAt: string
 }
 
-function factsToLines(items: SpotlightFact[]) {
-  return items.map((item) => `${item.label}: ${item.value}`).join('\n')
+type AdminLoginResponse = AdminSessionResponse & {
+  token: string
 }
 
-function factsFromLines(value: string) {
-  return value
-    .split('\n')
-    .map((item) => item.trim())
-    .filter(Boolean)
-    .map((item) => {
-      const [label, ...rest] = item.split(':')
+function readStoredToken() {
+  if (typeof window === 'undefined') {
+    return null
+  }
 
-      return {
-        label: label.trim(),
-        value: rest.join(':').trim(),
-      }
-    })
-    .filter((item) => item.label && item.value)
+  return window.localStorage.getItem(ADMIN_TOKEN_STORAGE_KEY)
+}
+
+function persistToken(token: string | null) {
+  if (typeof window === 'undefined') {
+    return
+  }
+
+  if (!token) {
+    window.localStorage.removeItem(ADMIN_TOKEN_STORAGE_KEY)
+    return
+  }
+
+  window.localStorage.setItem(ADMIN_TOKEN_STORAGE_KEY, token)
 }
 
 function stripProfileMeta(payload: ProfileResponse & { _meta?: unknown }) {
@@ -42,518 +49,372 @@ function stripProfileMeta(payload: ProfileResponse & { _meta?: unknown }) {
   return profile as ProfileResponse
 }
 
+async function requestJson<T>(path: string, init: RequestInit = {}, token?: string): Promise<T> {
+  const url = buildApiUrl(path)
+
+  if (!url) {
+    throw new Error('Admin page requires the backend API. Set VITE_API_BASE_URL before using it in production.')
+  }
+
+  const headers = new Headers(init.headers)
+  headers.set('Accept', 'application/json')
+
+  if (init.body && !headers.has('Content-Type')) {
+    headers.set('Content-Type', 'application/json')
+  }
+
+  if (token) {
+    headers.set('Authorization', `Bearer ${token}`)
+  }
+
+  const response = await fetch(url, {
+    ...init,
+    headers,
+  })
+  const rawBody = await response.text()
+  const payload = rawBody ? (JSON.parse(rawBody) as Record<string, unknown>) : null
+
+  if (!response.ok) {
+    throw new Error(
+      typeof payload?.message === 'string'
+        ? payload.message
+        : `Request failed with status ${response.status}`,
+    )
+  }
+
+  return payload as T
+}
+
 export function AdminPage() {
-  const { data, loading, error } = useProfile()
-  const [form, setForm] = useState<ProfileResponse | null>(null)
-  const [status, setStatus] = useState<string | null>(null)
-  const [locating, setLocating] = useState(false)
-  const [saving, setSaving] = useState(false)
+  const [token, setToken] = useState<string | null>(() => readStoredToken())
+  const [authState, setAuthState] = useState<'checking' | 'logged-out' | 'ready'>(() =>
+    readStoredToken() ? 'checking' : 'logged-out',
+  )
+  const [authMessage, setAuthMessage] = useState<string | null>(null)
+  const [status, setStatus] = useState<StatusMessage | null>(null)
+  const [busy, setBusy] = useState<'idle' | 'login' | 'logout' | 'reset' | 'save'>('idle')
+  const [editorValue, setEditorValue] = useState('')
+  const [sessionInfo, setSessionInfo] = useState<AdminSessionResponse | null>(null)
+  const [loginForm, setLoginForm] = useState({
+    email: '',
+    password: '',
+  })
 
   useEffect(() => {
-    if (data) {
-      setForm(data)
-    }
-  }, [data])
+    let cancelled = false
 
-  const updateForm = (updater: (current: ProfileResponse) => ProfileResponse) => {
-    setForm((current) => (current ? updater(current) : current))
-  }
-
-  const saveChanges = async () => {
-    if (!form) {
-      return
-    }
-
-    setSaving(true)
-
-    try {
-      const response = await fetch('/api/profile', {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(form),
-      })
-
-      if (!response.ok) {
-        const payload = (await response.json()) as { message?: string }
-
-        throw new Error(payload.message ?? `API returned ${response.status}`)
+    if (!token) {
+      setAuthState('logged-out')
+      setSessionInfo(null)
+      setEditorValue('')
+      return () => {
+        cancelled = true
       }
-
-      const savedProfile = stripProfileMeta(
-        (await response.json()) as ProfileResponse & { _meta?: unknown },
-      )
-      setForm(savedProfile)
-      notifyProfileUpdated()
-      setStatus('Saved to MongoDB through the backend API.')
-    } catch (saveError) {
-      setStatus(saveError instanceof Error ? saveError.message : 'Could not save profile.')
-    } finally {
-      setSaving(false)
     }
-  }
 
-  const resetChanges = async () => {
-    setSaving(true)
+    async function bootstrap() {
+      setAuthState('checking')
+      setAuthMessage(null)
+
+      try {
+        const session = await requestJson<AdminSessionResponse>('/admin/session', {}, token ?? undefined)
+        const currentProfile = await requestJson<ProfileApiResponse>(
+          '/admin/profile',
+          {},
+          token ?? undefined,
+        )
+
+        if (cancelled) {
+          return
+        }
+
+        setSessionInfo(session)
+        setEditorValue(JSON.stringify(stripProfileMeta(currentProfile), null, 2))
+        setAuthState('ready')
+      } catch (error) {
+        if (cancelled) {
+          return
+        }
+
+        persistToken(null)
+        setToken(null)
+        setSessionInfo(null)
+        setAuthState('logged-out')
+        setAuthMessage(error instanceof Error ? error.message : 'Admin session expired.')
+      }
+    }
+
+    void bootstrap()
+
+    return () => {
+      cancelled = true
+    }
+  }, [token])
+
+  async function handleLogin(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setBusy('login')
+    setAuthMessage(null)
+    setStatus(null)
 
     try {
-      const response = await fetch('/api/profile/reset', {
+      const loginResponse = await requestJson<AdminLoginResponse>('/admin/login', {
+        body: JSON.stringify(loginForm),
         method: 'POST',
       })
 
-      if (!response.ok) {
-        const payload = (await response.json()) as { message?: string }
-
-        throw new Error(payload.message ?? `API returned ${response.status}`)
-      }
-
-      const defaultProfile = stripProfileMeta(
-        (await response.json()) as ProfileResponse & { _meta?: unknown },
-      )
-      setForm(defaultProfile)
-      notifyProfileUpdated()
-      setStatus('Reset profile document back to the default Mongo seed.')
-    } catch (resetError) {
-      setStatus(resetError instanceof Error ? resetError.message : 'Could not reset profile.')
+      persistToken(loginResponse.token)
+      setToken(loginResponse.token)
+      setLoginForm((current) => ({
+        ...current,
+        password: '',
+      }))
+      setStatus({
+        tone: 'success',
+        message: 'Dang nhap thanh cong. Dang tai du lieu quan tri...',
+      })
+    } catch (error) {
+      setAuthMessage(error instanceof Error ? error.message : 'Dang nhap that bai.')
     } finally {
-      setSaving(false)
+      setBusy('idle')
     }
   }
 
-  const copyJson = async () => {
-    if (!form) {
-      return
-    }
+  async function handleLogout() {
+    const currentToken = token
 
-    await navigator.clipboard.writeText(JSON.stringify(form, null, 2))
-    setStatus('Current admin draft copied as JSON.')
+    setBusy('logout')
+    setStatus(null)
+
+    try {
+      if (currentToken) {
+        await requestJson('/admin/logout', { method: 'POST' }, currentToken)
+      }
+    } catch {
+      // Token removal on the client is enough to close access.
+    } finally {
+      persistToken(null)
+      setToken(null)
+      setSessionInfo(null)
+      setBusy('idle')
+      setAuthMessage(null)
+    }
   }
 
-  const fillCurrentLocation = () => {
-    if (!navigator.geolocation) {
-      setStatus('This browser does not support geolocation.')
+  async function handleSave() {
+    if (!token) {
       return
     }
 
-    setLocating(true)
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        updateForm((current) => ({
-          ...current,
-          location: {
-            ...current.location,
-            latitude: Number(position.coords.latitude.toFixed(6)),
-            longitude: Number(position.coords.longitude.toFixed(6)),
-          },
-        }))
-        setLocating(false)
-        setStatus('Filled the location fields with your current device coordinates.')
-      },
-      (geoError) => {
-        setLocating(false)
-        setStatus(geoError.message)
-      },
-      {
-        enableHighAccuracy: true,
-        timeout: 15000,
-        maximumAge: 0,
-      },
-    )
+    setBusy('save')
+    setStatus(null)
+
+    try {
+      const parsedProfile = JSON.parse(editorValue) as ProfileResponse
+      const savedProfile = await requestJson<ProfileApiResponse>(
+        '/admin/profile',
+        {
+          body: JSON.stringify(parsedProfile),
+          method: 'PUT',
+        },
+        token,
+      )
+
+      setEditorValue(JSON.stringify(stripProfileMeta(savedProfile), null, 2))
+      setStatus({
+        tone: 'success',
+        message: 'Da luu thay doi vao backend profile store.',
+      })
+    } catch (error) {
+      setStatus({
+        tone: 'error',
+        message: error instanceof Error ? error.message : 'Khong the luu thay doi.',
+      })
+    } finally {
+      setBusy('idle')
+    }
+  }
+
+  async function handleReset() {
+    if (!token) {
+      return
+    }
+
+    setBusy('reset')
+    setStatus(null)
+
+    try {
+      const resetValue = await requestJson<ProfileApiResponse>(
+        '/admin/profile/reset',
+        {
+          method: 'POST',
+        },
+        token,
+      )
+
+      setEditorValue(JSON.stringify(stripProfileMeta(resetValue), null, 2))
+      setStatus({
+        tone: 'success',
+        message: 'Da reset profile ve du lieu mac dinh.',
+      })
+    } catch (error) {
+      setStatus({
+        tone: 'error',
+        message: error instanceof Error ? error.message : 'Khong the reset du lieu.',
+      })
+    } finally {
+      setBusy('idle')
+    }
+  }
+
+  function handleFormatJson() {
+    try {
+      const parsedProfile = JSON.parse(editorValue) as ProfileResponse
+      setEditorValue(JSON.stringify(parsedProfile, null, 2))
+      setStatus({
+        tone: 'success',
+        message: 'JSON da duoc format lai.',
+      })
+    } catch (error) {
+      setStatus({
+        tone: 'error',
+        message: error instanceof Error ? error.message : 'JSON khong hop le.',
+      })
+    }
   }
 
   return (
     <Shell accent="forest">
       <div className="page admin-page">
-        <header className="topbar">
-          <div>
-            <p className="topbar-label">Admin</p>
-            <strong>Profile content editor</strong>
+        <header className="cyber-topbar admin-topbar">
+          <a className="brand-mark" href="/">
+            md.
+          </a>
+
+          <div className="admin-topbar-copy">
+            <span>Secret route</span>
+            <strong>{ADMIN_ROUTE}</strong>
           </div>
-          <nav className="topbar-nav">
-            <Link to="/">Profile</Link>
-            <Link to="/map">Map</Link>
-          </nav>
+
+          <div className="admin-topbar-actions">
+            <a className="ghost-button" href="/">
+              View profile
+            </a>
+
+            {authState === 'ready' && (
+              <button className="ghost-button" onClick={handleLogout} type="button">
+                {busy === 'logout' ? 'Signing out...' : 'Sign out'}
+              </button>
+            )}
+          </div>
         </header>
 
-        {loading && (
-          <section className="card loading-card">
-            <p className="card-kicker">Loading admin</p>
-            <h1>Preparing your profile editor...</h1>
+        {authState === 'checking' && (
+          <section className="panel loading-card">
+            <p className="card-kicker">Admin session</p>
+            <h1>Checking access...</h1>
+            <p>Validating the current token and loading the editable profile payload.</p>
           </section>
         )}
 
-        {error && !loading && (
-          <section className="card error-card">
-            <p className="card-kicker">API error</p>
-            <h1>Could not load profile data.</h1>
-            <p>{error}</p>
+        {authState === 'logged-out' && (
+          <section className="panel admin-login-card">
+            <p className="card-kicker">Restricted access</p>
+            <h1>Sign in to open the profile admin.</h1>
+            <p className="admin-copy">
+              Only the configured admin account can open this page. Public visitors can still read the
+              profile, but they cannot change the data source.
+            </p>
+
+            <form className="admin-login-form" onSubmit={handleLogin}>
+              <label className="admin-field">
+                <span>Email</span>
+                <input
+                  onChange={(event) =>
+                    setLoginForm((current) => ({
+                      ...current,
+                      email: event.target.value,
+                    }))
+                  }
+                  type="email"
+                  value={loginForm.email}
+                />
+              </label>
+
+              <label className="admin-field">
+                <span>Password</span>
+                <input
+                  onChange={(event) =>
+                    setLoginForm((current) => ({
+                      ...current,
+                      password: event.target.value,
+                    }))
+                  }
+                  type="password"
+                  value={loginForm.password}
+                />
+              </label>
+
+              <button className="primary-button admin-submit-button" disabled={busy === 'login'} type="submit">
+                {busy === 'login' ? 'Signing in...' : 'Open admin'}
+              </button>
+            </form>
+
+            {authMessage && <p className="admin-status admin-status-error">{authMessage}</p>}
+            {status && <p className={`admin-status admin-status-${status.tone}`}>{status.message}</p>}
           </section>
         )}
 
-        {form && !loading && !error && (
+        {authState === 'ready' && (
           <>
-            <section className="admin-hero card">
+            <section className="panel admin-hero-panel">
               <div>
-                <p className="card-kicker">Editor status</p>
-                <h1>One place to edit text, image popup, and saved location.</h1>
-                <p className="hero-bio">
-                  This admin page now saves through the backend API, so your profile can
-                  persist in MongoDB instead of only living inside one browser.
+                <p className="card-kicker">Editor</p>
+                <h1>Edit the full profile payload from one protected page.</h1>
+                <p className="admin-copy">
+                  Every field shown on the public profile is stored in this JSON. Edit the payload,
+                  format it, then save it back through the protected backend endpoint.
                 </p>
               </div>
 
-              <div className="admin-badges">
-                <span>Mongo-backed admin flow</span>
-                <span>Save and reset go through /api/profile</span>
-              </div>
-
-              <div className="hero-actions">
-                <button className="primary-button" onClick={saveChanges} type="button">
-                  {saving ? 'Saving...' : 'Save changes'}
+              <div className="admin-hero-actions">
+                <button className="primary-button" disabled={busy === 'save'} onClick={handleSave} type="button">
+                  {busy === 'save' ? 'Saving...' : 'Save changes'}
                 </button>
-                <button className="ghost-button" onClick={resetChanges} type="button">
-                  Reset to default
+                <button className="ghost-button" disabled={busy === 'reset'} onClick={handleReset} type="button">
+                  {busy === 'reset' ? 'Resetting...' : 'Reset to default'}
                 </button>
-                <button className="ghost-button" onClick={copyJson} type="button">
-                  Copy JSON
+                <button className="ghost-button" onClick={handleFormatJson} type="button">
+                  Format JSON
                 </button>
               </div>
 
-              {status && <p className="admin-status">{status}</p>}
+              <div className="admin-session-strip">
+                <span>Signed in as {sessionInfo?.email ?? 'admin'}</span>
+                {sessionInfo?.expiresAt && <span>Session expires {new Date(sessionInfo.expiresAt).toLocaleString()}</span>}
+              </div>
+
+              {status && <p className={`admin-status admin-status-${status.tone}`}>{status.message}</p>}
             </section>
 
-            <section className="admin-grid">
-              <article className="card admin-card">
-                <p className="card-kicker">Main profile</p>
-                <div className="admin-fields">
-                  <label>
-                    Cover headline
-                    <textarea
-                      rows={4}
-                      value={toLines(form.coverHeadline)}
-                      onChange={(event) =>
-                        updateForm((current) => ({
-                          ...current,
-                          coverHeadline: fromLines(event.target.value),
-                        }))
-                      }
-                    />
-                  </label>
-                  <label>
-                    Name
-                    <input
-                      value={form.identity.name}
-                      onChange={(event) =>
-                        updateForm((current) => ({
-                          ...current,
-                          identity: { ...current.identity, name: event.target.value },
-                        }))
-                      }
-                    />
-                  </label>
-                  <label>
-                    Handle
-                    <input
-                      value={form.identity.handle}
-                      onChange={(event) =>
-                        updateForm((current) => ({
-                          ...current,
-                          identity: { ...current.identity, handle: event.target.value },
-                        }))
-                      }
-                    />
-                  </label>
-                  <label>
-                    Role
-                    <input
-                      value={form.identity.role}
-                      onChange={(event) =>
-                        updateForm((current) => ({
-                          ...current,
-                          identity: { ...current.identity, role: event.target.value },
-                        }))
-                      }
-                    />
-                  </label>
-                  <label>
-                    Tagline
-                    <textarea
-                      rows={3}
-                      value={form.identity.tagline}
-                      onChange={(event) =>
-                        updateForm((current) => ({
-                          ...current,
-                          identity: { ...current.identity, tagline: event.target.value },
-                        }))
-                      }
-                    />
-                  </label>
-                  <label>
-                    Bio
-                    <textarea
-                      rows={5}
-                      value={form.identity.bio}
-                      onChange={(event) =>
-                        updateForm((current) => ({
-                          ...current,
-                          identity: { ...current.identity, bio: event.target.value },
-                        }))
-                      }
-                    />
-                  </label>
-                  <label>
-                    Email
-                    <input
-                      value={form.identity.email}
-                      onChange={(event) =>
-                        updateForm((current) => ({
-                          ...current,
-                          identity: { ...current.identity, email: event.target.value },
-                        }))
-                      }
-                    />
-                  </label>
-                  <label>
-                    Availability
-                    <input
-                      value={form.identity.availability}
-                      onChange={(event) =>
-                        updateForm((current) => ({
-                          ...current,
-                          identity: { ...current.identity, availability: event.target.value },
-                        }))
-                      }
-                    />
-                  </label>
-                  <label>
-                    Avatar URL
-                    <input
-                      value={form.identity.avatarUrl}
-                      onChange={(event) =>
-                        updateForm((current) => ({
-                          ...current,
-                          identity: { ...current.identity, avatarUrl: event.target.value },
-                        }))
-                      }
-                    />
-                  </label>
-                  <label>
-                    Quick facts
-                    <textarea
-                      rows={4}
-                      value={toLines(form.quickFacts)}
-                      onChange={(event) =>
-                        updateForm((current) => ({
-                          ...current,
-                          quickFacts: fromLines(event.target.value),
-                        }))
-                      }
-                    />
-                  </label>
-                  <label>
-                    Current updates
-                    <textarea
-                      rows={4}
-                      value={toLines(form.now)}
-                      onChange={(event) =>
-                        updateForm((current) => ({
-                          ...current,
-                          now: fromLines(event.target.value),
-                        }))
-                      }
-                    />
-                  </label>
+            <section className="panel admin-editor-panel">
+              <div className="admin-section-head">
+                <div>
+                  <p className="card-kicker">Profile JSON</p>
+                  <h2>Protected payload editor</h2>
+                  <p>
+                    Keep the same overall shape when you edit. The backend validates the payload before
+                    saving it.
+                  </p>
                 </div>
-              </article>
+              </div>
 
-              <article className="card admin-card">
-                <p className="card-kicker">Saved location</p>
-                <div className="admin-fields">
-                  <label>
-                    Location label
-                    <input
-                      value={form.location.label}
-                      onChange={(event) =>
-                        updateForm((current) => ({
-                          ...current,
-                          location: { ...current.location, label: event.target.value },
-                        }))
-                      }
-                    />
-                  </label>
-                  <label>
-                    Location description
-                    <textarea
-                      rows={3}
-                      value={form.location.description}
-                      onChange={(event) =>
-                        updateForm((current) => ({
-                          ...current,
-                          location: { ...current.location, description: event.target.value },
-                        }))
-                      }
-                    />
-                  </label>
-                  <label>
-                    Latitude
-                    <input
-                      type="number"
-                      step="0.000001"
-                      value={form.location.latitude}
-                      onChange={(event) =>
-                        updateForm((current) => ({
-                          ...current,
-                          location: {
-                            ...current.location,
-                            latitude: Number(event.target.value),
-                          },
-                        }))
-                      }
-                    />
-                  </label>
-                  <label>
-                    Longitude
-                    <input
-                      type="number"
-                      step="0.000001"
-                      value={form.location.longitude}
-                      onChange={(event) =>
-                        updateForm((current) => ({
-                          ...current,
-                          location: {
-                            ...current.location,
-                            longitude: Number(event.target.value),
-                          },
-                        }))
-                      }
-                    />
-                  </label>
-                </div>
-
-                <div className="hero-actions">
-                  <button className="ghost-button" onClick={fillCurrentLocation} type="button">
-                    {locating ? 'Reading current location...' : 'Use current device location'}
-                  </button>
-                </div>
-              </article>
-
-              <article className="card admin-card admin-card-wide">
-                <p className="card-kicker">Popup image</p>
-                <div className="admin-media-grid">
-                  <div className="admin-media-preview">
-                    <img alt={form.spotlight.alt} src={form.spotlight.imageUrl} />
-                  </div>
-
-                  <div className="admin-fields">
-                    <label>
-                      Image URL
-                      <input
-                        value={form.spotlight.imageUrl}
-                        onChange={(event) =>
-                          updateForm((current) => ({
-                            ...current,
-                            spotlight: { ...current.spotlight, imageUrl: event.target.value },
-                          }))
-                        }
-                      />
-                    </label>
-                    <label>
-                      Image alt
-                      <input
-                        value={form.spotlight.alt}
-                        onChange={(event) =>
-                          updateForm((current) => ({
-                            ...current,
-                            spotlight: { ...current.spotlight, alt: event.target.value },
-                          }))
-                        }
-                      />
-                    </label>
-                    <label>
-                      Card eyebrow
-                      <input
-                        value={form.spotlight.eyebrow}
-                        onChange={(event) =>
-                          updateForm((current) => ({
-                            ...current,
-                            spotlight: { ...current.spotlight, eyebrow: event.target.value },
-                          }))
-                        }
-                      />
-                    </label>
-                    <label>
-                      Card title
-                      <input
-                        value={form.spotlight.title}
-                        onChange={(event) =>
-                          updateForm((current) => ({
-                            ...current,
-                            spotlight: { ...current.spotlight, title: event.target.value },
-                          }))
-                        }
-                      />
-                    </label>
-                    <label>
-                      Card blurb
-                      <textarea
-                        rows={3}
-                        value={form.spotlight.blurb}
-                        onChange={(event) =>
-                          updateForm((current) => ({
-                            ...current,
-                            spotlight: { ...current.spotlight, blurb: event.target.value },
-                          }))
-                        }
-                      />
-                    </label>
-                    <label>
-                      Popup title
-                      <input
-                        value={form.spotlight.modalTitle}
-                        onChange={(event) =>
-                          updateForm((current) => ({
-                            ...current,
-                            spotlight: { ...current.spotlight, modalTitle: event.target.value },
-                          }))
-                        }
-                      />
-                    </label>
-                    <label>
-                      Popup description
-                      <textarea
-                        rows={4}
-                        value={form.spotlight.modalDescription}
-                        onChange={(event) =>
-                          updateForm((current) => ({
-                            ...current,
-                            spotlight: {
-                              ...current.spotlight,
-                              modalDescription: event.target.value,
-                            },
-                          }))
-                        }
-                      />
-                    </label>
-                    <label>
-                      Popup facts
-                      <textarea
-                        rows={5}
-                        value={factsToLines(form.spotlight.facts)}
-                        onChange={(event) =>
-                          updateForm((current) => ({
-                            ...current,
-                            spotlight: {
-                              ...current.spotlight,
-                              facts: factsFromLines(event.target.value),
-                            },
-                          }))
-                        }
-                      />
-                    </label>
-                  </div>
-                </div>
-              </article>
+              <textarea
+                className="admin-json-editor"
+                onChange={(event) => setEditorValue(event.target.value)}
+                spellCheck={false}
+                value={editorValue}
+              />
             </section>
           </>
         )}

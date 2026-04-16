@@ -1,21 +1,20 @@
 import { useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
-import { MapPreviewCard } from '../components/MapPreviewCard'
 import { SectionTitle } from '../components/SectionTitle'
 import { Shell } from '../components/Shell'
 import { useProfile } from '../hooks/useProfile'
 
-const accentModes = [
-  { key: 'ember', label: 'Ember' },
-  { key: 'ocean', label: 'Ocean' },
-  { key: 'forest', label: 'Forest' },
-] as const
+const navItems = [
+  { label: 'HOME', href: '#home' },
+  { label: 'ABOUT', href: '#about' },
+  { label: 'SERVICE', href: '#service' },
+  { label: 'PROJECT', href: '#project' },
+  { label: 'SKILL', href: '#skill' },
+  { label: 'CONTACT', href: '#contact' },
+]
 
 export function ProfilePage() {
   const { data, loading, error } = useProfile()
-  const [accent, setAccent] = useState<(typeof accentModes)[number]['key']>('ember')
   const [copied, setCopied] = useState(false)
-  const [isSpotlightOpen, setIsSpotlightOpen] = useState(false)
 
   const localTime = useMemo(() => {
     if (!data) {
@@ -29,6 +28,40 @@ export function ProfilePage() {
       timeZone: data.identity.timezone,
     }).format(new Date())
   }, [data])
+
+  const firstName = useMemo(() => {
+    if (!data) {
+      return 'Dung'
+    }
+
+    const segments = data.identity.name.trim().split(/\s+/)
+    return segments.at(-1) ?? data.identity.name
+  }, [data])
+
+  const heroStats = useMemo(() => {
+    if (!data) {
+      return []
+    }
+
+    return [
+      {
+        value: `${String(data.projects.length).padStart(2, '0')}+`,
+        label: 'Project Builds',
+      },
+      {
+        value: `${String(data.skills.length).padStart(2, '0')}+`,
+        label: 'Core Skills',
+      },
+      {
+        value: `${String(data.experience.length).padStart(2, '0')}+`,
+        label: 'Career Chapters',
+      },
+    ]
+  }, [data])
+
+  const primaryProjectLink = data?.projects.find((project) => project.links.github || project.links.live)
+  const heroImage = data?.gallery[0]
+  const secondaryImage = data?.gallery[1] ?? data?.gallery[0]
 
   const handleCopyEmail = async () => {
     if (!data) {
@@ -45,33 +78,39 @@ export function ProfilePage() {
   }
 
   return (
-    <Shell accent={accent}>
-      <div className="page profile-page">
-        <header className="topbar">
-          <div>
-            <p className="topbar-label">Profile Experience</p>
-            <strong>{data?.identity.handle ?? 'Loading profile...'}</strong>
-          </div>
-          <nav className="topbar-nav">
-            <a href="#overview">Overview</a>
-            <a href="#journey">Journey</a>
-            <a href="#work">Work</a>
-            <Link to="/map">Map</Link>
-            <Link to="/admin">Admin</Link>
+    <Shell accent="ember">
+      <div className="page profile-page cyber-page">
+        <header className="cyber-topbar">
+          <a className="brand-mark" href="#home">
+            {firstName}.
+          </a>
+
+          <nav className="cyber-nav">
+            {navItems.map((item) => (
+              <a href={item.href} key={item.href}>
+                {item.label}
+              </a>
+            ))}
           </nav>
+
+          {data && (
+            <a className="topbar-cta" href={`mailto:${data.identity.email}`}>
+              HIRE ME
+            </a>
+          )}
         </header>
 
         {loading && (
-          <section className="card loading-card">
+          <section className="panel loading-card">
             <p className="card-kicker">Booting profile</p>
             <h1>Loading your profile experience...</h1>
-            <p>Fetching data from the backend before rendering the full layout.</p>
+            <p>Fetching the profile payload from the API before rendering the full layout.</p>
           </section>
         )}
 
         {error && !loading && (
-          <section className="card error-card">
-            <p className="card-kicker">API error</p>
+          <section className="panel error-card">
+            <p className="card-kicker">Profile error</p>
             <h1>Could not load profile data.</h1>
             <p>{error}</p>
           </section>
@@ -79,252 +118,151 @@ export function ProfilePage() {
 
         {data && !loading && !error && (
           <>
-            <section className="reel-stage" id="overview">
-              <div className="reel-caption">
-                {data.coverHeadline.map((line) => (
-                  <p key={line}>{line}</p>
-                ))}
-              </div>
+            <section className="hero-grid section-anchor" id="home">
+              <article className="hero-copy">
+                <p className="welcome-copy">Welcome</p>
+                <h1 className="hero-title">
+                  Hello Everyone I&apos;m <span>{firstName}</span>
+                </h1>
+                <p className="hero-role-line">{data.identity.role}</p>
+                <p className="hero-summary">{data.identity.tagline}</p>
+                <p className="hero-bio">{data.identity.bio}</p>
 
-              <article className="showcase-browser">
-                <div className="browser-bar">
-                  <div className="browser-dots">
-                    <span />
-                    <span />
-                    <span />
+                <div className="hero-actions">
+                  <a className="primary-button" href={`mailto:${data.identity.email}`}>
+                    Contact Me
+                  </a>
+
+                  {primaryProjectLink && (primaryProjectLink.links.github || primaryProjectLink.links.live) && (
+                    <a
+                      className="ghost-button"
+                      href={primaryProjectLink.links.github ?? primaryProjectLink.links.live}
+                      rel="noreferrer"
+                      target="_blank"
+                    >
+                      View Work
+                    </a>
+                  )}
+
+                  <button className="ghost-button" onClick={handleCopyEmail} type="button">
+                    {copied ? 'Email Copied' : 'Copy Email'}
+                  </button>
+                </div>
+
+                <div className="hero-stat-grid">
+                  {heroStats.map((item) => (
+                    <article className="stat-tile" key={item.label}>
+                      <strong>{item.value}</strong>
+                      <span>{item.label}</span>
+                    </article>
+                  ))}
+                </div>
+
+                <div className="social-strip">
+                  {data.socials.map((item) => (
+                    <a href={item.href} key={item.label} rel="noreferrer" target="_blank">
+                      {item.label}
+                    </a>
+                  ))}
+                </div>
+              </article>
+
+              <article className="hero-visual">
+                <div className="visual-badge visual-badge-top">Responsive</div>
+                <div className="visual-badge visual-badge-bottom">Railway API</div>
+                <div className="visual-badge visual-badge-side">Vercel Frontend</div>
+                <div className="visual-orbit" />
+
+                <div className="device-frame">
+                  <div className="device-shell">
+                    <div className="device-notch" />
+                    {heroImage && <img alt={heroImage.alt} className="device-image" src={heroImage.imageUrl} />}
+                    <div className="device-footer">
+                      <span>{data.identity.handle}</span>
+                      <strong>{data.identity.role}</strong>
+                    </div>
                   </div>
-                  <div className="browser-address">midas-profile.vercel.app</div>
-                </div>
-
-                <div className="showcase-grid">
-                  <div className="showcase-main">
-                    <p className="card-kicker">Profile site</p>
-                    <h1>{data.identity.name}</h1>
-                    <p className="hero-role">{data.identity.role}</p>
-                    <p className="hero-tagline">{data.identity.tagline}</p>
-                    <p className="hero-bio">{data.identity.bio}</p>
-
-                    <div className="hero-actions">
-                      <a className="primary-button" href={`mailto:${data.identity.email}`}>
-                        Contact now
-                      </a>
-                      <Link className="ghost-button" to="/map">
-                        Open live map
-                      </Link>
-                      <button className="ghost-button" onClick={handleCopyEmail} type="button">
-                        {copied ? 'Email copied' : 'Copy email'}
-                      </button>
-                    </div>
-
-                    <div className="fact-pills">
-                      {data.quickFacts.map((fact) => (
-                        <span key={fact}>{fact}</span>
-                      ))}
-                    </div>
-                  </div>
-
-                  <aside className="showcase-side">
-                    <div className="identity-card card">
-                      <div className="identity-header">
-                        <img alt={data.identity.handle} src={data.identity.avatarUrl} />
-                        <div>
-                          <p className="card-kicker">Handle</p>
-                          <h2>{data.identity.handle}</h2>
-                        </div>
-                      </div>
-
-                      <div className="identity-details">
-                        <div>
-                          <span>Timezone</span>
-                          <strong>{data.identity.timezone}</strong>
-                        </div>
-                        <div>
-                          <span>Local time</span>
-                          <strong>{localTime}</strong>
-                        </div>
-                        <div>
-                          <span>Availability</span>
-                          <strong>{data.identity.availability}</strong>
-                        </div>
-                        <div>
-                          <span>Location hint</span>
-                          <strong>{data.identity.locationHint}</strong>
-                        </div>
-                      </div>
-
-                      <div className="theme-switcher">
-                        {accentModes.map((mode) => (
-                          <button
-                            className={mode.key === accent ? 'theme-chip active' : 'theme-chip'}
-                            key={mode.key}
-                            onClick={() => setAccent(mode.key)}
-                            type="button"
-                          >
-                            {mode.label}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div className="showcase-metric-strip">
-                      {data.metrics.slice(0, 2).map((metric) => (
-                        <div className="showcase-metric" key={metric.label}>
-                          <span>{metric.label}</span>
-                          <strong>{metric.value}</strong>
-                        </div>
-                      ))}
-                    </div>
-                  </aside>
-                </div>
-
-                <div className="floating-note left">
-                  <span>Now showing</span>
-                  <strong>Profile + map + backend</strong>
-                </div>
-                <div className="floating-note right">
-                  <span>Inspired by short-form reel layouts</span>
-                  <strong>Top caption, centered screen, black stage</strong>
                 </div>
               </article>
             </section>
 
-            <section className="metric-grid">
-              {data.metrics.map((metric) => (
-                <article className="card metric-card" key={metric.label}>
-                  <p className="card-kicker">{metric.label}</p>
-                  <h2>{metric.value}</h2>
-                  <p>{metric.detail}</p>
-                </article>
-              ))}
-            </section>
-
-            <section className="split-grid">
-              <div className="card content-card">
+            <section className="about-grid section-anchor" id="about">
+              <article className="panel about-panel">
                 <SectionTitle
-                  eyebrow="Focus"
-                  title="What this profile highlights"
-                  description="A mix of visual polish, practical backend structure, and profile data that can be edited from one source."
+                  eyebrow="About"
+                  title={data.identity.name}
+                  description="A darker, sharper landing page inspired by portfolio hero layouts, while still staying connected to the shared backend contract."
                 />
-                <div className="feature-grid">
-                  {data.focusAreas.map((item) => (
-                    <article className="feature-card" key={item.title}>
-                      <h3>{item.title}</h3>
-                      <p>{item.description}</p>
-                    </article>
+
+                <div className="info-grid">
+                  <div className="info-card">
+                    <span>Timezone</span>
+                    <strong>{data.identity.timezone}</strong>
+                  </div>
+                  <div className="info-card">
+                    <span>Local Time</span>
+                    <strong>{localTime}</strong>
+                  </div>
+                  <div className="info-card">
+                    <span>Availability</span>
+                    <strong>{data.identity.availability}</strong>
+                  </div>
+                  <div className="info-card">
+                    <span>Location</span>
+                    <strong>{data.location.label}</strong>
+                  </div>
+                </div>
+
+                <div className="headline-strip">
+                  {data.coverHeadline.map((line) => (
+                    <span key={line}>{line}</span>
                   ))}
                 </div>
-              </div>
+              </article>
 
-              <div className="side-stack">
-                <button
-                  className="spotlight-card"
-                  onClick={() => setIsSpotlightOpen(true)}
-                  type="button"
-                >
-                  <img alt={data.spotlight.alt} src={data.spotlight.imageUrl} />
-                  <div className="spotlight-copy">
-                    <p className="card-kicker">{data.spotlight.eyebrow}</p>
-                    <h3>{data.spotlight.title}</h3>
-                    <p>{data.spotlight.blurb}</p>
-                    <span>Click image to open popup</span>
-                  </div>
-                </button>
-
-                <MapPreviewCard />
-              </div>
+              <article className="panel portrait-panel">
+                {secondaryImage && <img alt={secondaryImage.alt} src={secondaryImage.imageUrl} />}
+                <div className="portrait-copy">
+                  <p className="card-kicker">Profile visual</p>
+                  <h3>{secondaryImage?.title ?? data.identity.role}</h3>
+                  <p>{secondaryImage?.description ?? data.location.description}</p>
+                </div>
+              </article>
             </section>
 
-            <section className="content-card card" id="journey">
+            <section className="panel service-panel section-anchor" id="service">
               <SectionTitle
-                eyebrow="Journey"
-                title="Experience timeline"
-                description="Structured like a living profile instead of a plain CV block."
+                eyebrow="Service"
+                title="Focused on clean UI, practical systems, and deploy safety"
+                description="The visual direction follows the dark portfolio reference, while each card still reflects the actual profile data and deployment setup."
               />
-              <div className="timeline">
-                {data.experience.map((item) => (
-                  <article className="timeline-item" key={`${item.period}-${item.title}`}>
-                    <span className="timeline-period">{item.period}</span>
-                    <div className="timeline-body">
-                      <h3>
-                        {item.title} <small>@ {item.company}</small>
-                      </h3>
-                      <p>{item.summary}</p>
-                      <ul>
-                        {item.highlights.map((highlight) => (
-                          <li key={highlight}>{highlight}</li>
-                        ))}
-                      </ul>
-                    </div>
+
+              <div className="focus-grid">
+                {data.focusAreas.map((item) => (
+                  <article className="focus-card" key={item.title}>
+                    <p className="card-kicker">Focus</p>
+                    <h3>{item.title}</h3>
+                    <p>{item.description}</p>
                   </article>
                 ))}
               </div>
             </section>
 
-            <section className="triple-grid">
-              <article className="card content-card">
-                <SectionTitle
-                  eyebrow="Stack"
-                  title="Core strengths"
-                  description="Backend-driven content paired with a responsive frontend presentation."
-                />
-                <div className="skill-list">
-                  {data.skills.map((skill) => (
-                    <div className="skill-row" key={skill.name}>
-                      <div className="skill-meta">
-                        <strong>{skill.name}</strong>
-                        <span>{skill.category}</span>
-                      </div>
-                      <div className="skill-bar">
-                        <span style={{ width: `${skill.level}%` }} />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </article>
+            <section className="project-section section-anchor" id="project">
+              <div className="section-title">
+                <span>Project</span>
+                <h2>Selected builds from the current stack</h2>
+                <p>Projects stay data-driven, but the presentation is now shaped like a cinematic landing page instead of a neutral dashboard.</p>
+              </div>
 
-              <article className="card content-card">
-                <SectionTitle
-                  eyebrow="Principles"
-                  title="How the work is shipped"
-                  description="A concise set of rules that shape the profile and product experience."
-                />
-                <div className="principle-list">
-                  {data.principles.map((principle) => (
-                    <p key={principle}>{principle}</p>
-                  ))}
-                </div>
-              </article>
-
-              <article className="card content-card">
-                <SectionTitle
-                  eyebrow="Now"
-                  title="Current momentum"
-                  description="Short-form updates that make the profile feel alive."
-                />
-                <div className="now-list">
-                  {data.now.map((item) => (
-                    <div className="now-item" key={item}>
-                      <span />
-                      <p>{item}</p>
-                    </div>
-                  ))}
-                </div>
-              </article>
-            </section>
-
-            <section className="content-card card" id="work">
-              <SectionTitle
-                eyebrow="Projects"
-                title="Featured builds"
-                description="Project cards ready for personal portfolio use. The data comes from the backend, so updates stay centralized."
-              />
               <div className="project-grid">
                 {data.projects.map((project) => (
                   <article className="project-card" key={project.title}>
-                    <div>
+                    <div className="project-header">
+                      <p className="card-kicker">Case study</p>
                       <h3>{project.title}</h3>
-                      <p>{project.blurb}</p>
                     </div>
+                    <p>{project.blurb}</p>
                     <div className="stack-list">
                       {project.stack.map((item) => (
                         <span key={item}>{item}</span>
@@ -347,62 +285,71 @@ export function ProfilePage() {
               </div>
             </section>
 
-            <footer className="footer-card card">
-              <div>
-                <p className="card-kicker">Links</p>
-                <h2>Ready to turn this into your public profile hub.</h2>
-              </div>
-              <div className="footer-links">
-                {data.socials.map((item) => (
-                  <a href={item.href} key={item.label} rel="noreferrer" target="_blank">
-                    {item.label}
-                  </a>
-                ))}
-                <Link to="/map">Map page</Link>
-                <Link to="/admin">Admin page</Link>
-              </div>
-            </footer>
+            <section className="skill-layout section-anchor" id="skill">
+              <article className="panel skill-panel">
+                <SectionTitle
+                  eyebrow="Skill"
+                  title="Core stack"
+                  description="High-confidence tools and disciplines used to build, ship, and keep the profile maintainable."
+                />
 
-            {isSpotlightOpen && (
-              <div
-                aria-modal="true"
-                className="image-popup-backdrop"
-                onClick={() => setIsSpotlightOpen(false)}
-                role="dialog"
-              >
-                <div
-                  className="image-popup-panel"
-                  onClick={(event) => event.stopPropagation()}
-                >
-                  <button
-                    aria-label="Close popup"
-                    className="image-popup-close"
-                    onClick={() => setIsSpotlightOpen(false)}
-                    type="button"
-                  >
-                    Close
-                  </button>
-                  <div className="image-popup-grid">
-                    <div className="image-popup-media">
-                      <img alt={data.spotlight.alt} src={data.spotlight.imageUrl} />
-                    </div>
-                    <div className="image-popup-content">
-                      <p className="card-kicker">{data.spotlight.eyebrow}</p>
-                      <h2>{data.spotlight.modalTitle}</h2>
-                      <p>{data.spotlight.modalDescription}</p>
-                      <div className="image-popup-facts">
-                        {data.spotlight.facts.map((fact) => (
-                          <div className="image-popup-fact" key={`${fact.label}-${fact.value}`}>
-                            <span>{fact.label}</span>
-                            <strong>{fact.value}</strong>
-                          </div>
-                        ))}
+                <div className="skill-list">
+                  {data.skills.map((skill) => (
+                    <div className="skill-row" key={skill.name}>
+                      <div className="skill-meta">
+                        <strong>{skill.name}</strong>
+                        <span>
+                          {skill.category} / {skill.level}%
+                        </span>
+                      </div>
+                      <div className="skill-bar">
+                        <span style={{ width: `${skill.level}%` }} />
                       </div>
                     </div>
-                  </div>
+                  ))}
+                </div>
+              </article>
+
+              <article className="panel timeline-panel">
+                <SectionTitle
+                  eyebrow="Journey"
+                  title="Current direction"
+                  description="A compact timeline that keeps the homepage feeling like a portfolio instead of a document dump."
+                />
+
+                <div className="timeline-list">
+                  {data.experience.map((item) => (
+                    <article className="timeline-card" key={`${item.period}-${item.title}`}>
+                      <span>{item.period}</span>
+                      <h3>{item.title}</h3>
+                      <strong>{item.company}</strong>
+                      <p>{item.summary}</p>
+                    </article>
+                  ))}
+                </div>
+              </article>
+            </section>
+
+            <footer className="panel contact-panel section-anchor" id="contact">
+              <div className="contact-copy">
+                <p className="card-kicker">Contact</p>
+                <h2>Ready to ship a darker, sharper portfolio presence.</h2>
+                <p>
+                  Frontend deploys on Vercel, profile data can come from Railway, and the page still renders safely if the API is not available.
+                </p>
+              </div>
+
+              <div className="contact-actions">
+                <a className="primary-button" href={`mailto:${data.identity.email}`}>
+                  {data.identity.email}
+                </a>
+                <div className="contact-pills">
+                  {data.principles.map((principle) => (
+                    <span key={principle}>{principle}</span>
+                  ))}
                 </div>
               </div>
-            )}
+            </footer>
           </>
         )}
       </div>

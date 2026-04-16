@@ -1,10 +1,8 @@
 import { MongoClient } from 'mongodb'
 
-const uri =
-  process.env.MONGODB_URI ??
-  (process.env.VERCEL ? '' : 'mongodb://localhost:27017/')
-
-const dbName = process.env.MONGODB_DB ?? 'profile_admin'
+const fallbackUri = process.env.VERCEL ? '' : ''
+const uri = process.env.MONGODB_URI?.trim() ?? fallbackUri
+const dbName = process.env.MONGODB_DB?.trim() || 'profile_admin'
 
 let clientPromise: Promise<MongoClient> | null = null
 
@@ -23,11 +21,14 @@ export async function getMongoClient() {
 
   if (!clientPromise) {
     const client = new MongoClient(uri, {
-      serverSelectionTimeoutMS: 1500,
-      connectTimeoutMS: 1500,
+      serverSelectionTimeoutMS: 4000,
+      connectTimeoutMS: 4000,
     })
 
-    clientPromise = client.connect()
+    clientPromise = client.connect().catch((error) => {
+      clientPromise = null
+      throw error
+    })
   }
 
   return clientPromise

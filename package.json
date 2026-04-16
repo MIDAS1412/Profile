@@ -4,11 +4,13 @@
   "version": "1.0.0",
   "scripts": {
     "postinstall": "npm install --prefix frontend && npm install --prefix backend",
-    "dev": "concurrently \"npm --prefix backend run dev\" \"npm --prefix frontend run dev\"",
+    "dev": "concurrently -n backend,frontend -c blue,magenta \"npm --prefix backend run dev\" \"npm --prefix frontend run dev\"",
+    "dev:frontend": "npm --prefix frontend run dev",
+    "dev:backend": "npm --prefix backend run dev",
     "build": "npm --prefix frontend run build",
     "build:frontend": "npm --prefix frontend run build",
     "build:backend": "npm --prefix backend run build",
-    "start": "npm --prefix backend run start"
+    "start": "npm --prefix frontend run preview"
   },
   "devDependencies": {
     "concurrently": "^9.2.1"

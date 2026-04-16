@@ -5,5 +5,8 @@ backend/node_modules/
 backend/dist/
 .vercel/
 *.log
+backend/.env
+backend/.env.*
+!backend/.env.example
 
 .vercel

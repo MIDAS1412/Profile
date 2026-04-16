@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
-import { PROFILE_UPDATED_EVENT } from '../lib/profileDraft'
-import type { ProfileResponse } from '../types'
+import { buildApiUrl } from '../config/api'
+import { profileData } from '../data/profile'
+import type { ProfileApiResponse, ProfileResponse } from '../types'
 
 type FetchState = {
   data: ProfileResponse | null
@@ -8,67 +9,65 @@ type FetchState = {
   error: string | null
 }
 
+const profileEndpoint = buildApiUrl('/profile')
+
 export function useProfile() {
   const [state, setState] = useState<FetchState>({
     data: null,
-    loading: true,
+    loading: Boolean(profileEndpoint),
     error: null,
   })
 
   useEffect(() => {
-    let active = true
-
-    const loadProfile = async () => {
-      setState((current) => ({
-        ...current,
-        loading: true,
+    if (!profileEndpoint) {
+      setState({
+        data: profileData,
+        loading: false,
         error: null,
-      }))
+      })
+      return
+    }
 
+    const endpoint = profileEndpoint
+    const controller = new AbortController()
+
+    async function loadProfile() {
       try {
-        const response = await fetch('/api/profile')
+        const response = await fetch(endpoint, {
+          headers: {
+            Accept: 'application/json',
+          },
+          signal: controller.signal,
+        })
 
         if (!response.ok) {
-          throw new Error(`API returned ${response.status}`)
+          throw new Error(`Profile request failed with status ${response.status}`)
         }
 
-        const payload = await response.json()
-        const { _meta: _discard, ...profile } = payload as ProfileResponse & {
-          _meta?: unknown
-        }
+        const payload = (await response.json()) as ProfileApiResponse
 
-        if (active) {
-          setState({
-            data: profile,
-            loading: false,
-            error: null,
-          })
-        }
+        setState({
+          data: payload,
+          loading: false,
+          error: null,
+        })
       } catch (error) {
-        if (active) {
-          setState({
-            data: null,
-            loading: false,
-            error: error instanceof Error ? error.message : 'Unknown error',
-          })
+        if (controller.signal.aborted) {
+          return
         }
+
+        console.warn('Falling back to bundled profile data.', error)
+        setState({
+          data: profileData,
+          loading: false,
+          error: null,
+        })
       }
     }
 
-    loadProfile()
+    void loadProfile()
 
-    const syncStoredProfile = () => {
-      loadProfile()
-    }
-
-    window.addEventListener(PROFILE_UPDATED_EVENT, syncStoredProfile)
-    window.addEventListener('storage', syncStoredProfile)
-
-    return () => {
-      active = false
-      window.removeEventListener(PROFILE_UPDATED_EVENT, syncStoredProfile)
-      window.removeEventListener('storage', syncStoredProfile)
-    }
+    return () => controller.abort()
   }, [])
 
   return state
