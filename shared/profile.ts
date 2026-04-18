@@ -54,6 +54,11 @@ export type SavedLocation = {
   longitude: number
 }
 
+export type ProfileViewStats = {
+  count: number
+  updatedAt: string
+}
+
 export type ProfileResponse = {
   coverHeadline: string[]
   identity: {
@@ -86,6 +91,10 @@ export type ProfileApiResponse = ProfileResponse & {
     source: 'railway-backend' | 'frontend-fallback'
     generatedAt: string
   }
+}
+
+export type ProfileViewsResponse = ProfileViewStats & {
+  ok: true
 }
 
 export const profileData: ProfileResponse = {

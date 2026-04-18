@@ -3,6 +3,8 @@ export type {
   FocusArea,
   GalleryImage,
   ProfileApiResponse,
+  ProfileViewStats,
+  ProfileViewsResponse,
   ProfileMetric,
   ProfileResponse,
   ProjectItem,

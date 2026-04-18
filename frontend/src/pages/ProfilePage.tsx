@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { SectionTitle } from '../components/SectionTitle'
 import { Shell } from '../components/Shell'
 import { useProfile } from '../hooks/useProfile'
+import { useProfileViews } from '../hooks/useProfileViews'
 
 const navItems = [
   { label: 'HOME', href: '#home' },
@@ -14,6 +15,7 @@ const navItems = [
 
 export function ProfilePage() {
   const { data, loading, error } = useProfile()
+  const { count: viewCount, loading: viewCountLoading } = useProfileViews()
   const [copied, setCopied] = useState(false)
 
   const localTime = useMemo(() => {
@@ -62,6 +64,13 @@ export function ProfilePage() {
   const primaryProjectLink = data?.projects.find((project) => project.links.github || project.links.live)
   const heroImage = data?.gallery[0]
   const secondaryImage = data?.gallery[1] ?? data?.gallery[0]
+  const formattedViewCount = useMemo(() => {
+    if (viewCount === null) {
+      return ''
+    }
+
+    return new Intl.NumberFormat('vi-VN').format(viewCount)
+  }, [viewCount])
 
   const handleCopyEmail = async () => {
     if (!data) {
@@ -80,6 +89,27 @@ export function ProfilePage() {
   return (
     <Shell accent="ember">
       <div className="page profile-page cyber-page">
+        {(viewCountLoading || viewCount !== null) && (
+          <aside
+            aria-label={viewCount !== null ? `${formattedViewCount} luot xem` : 'Dang tai luot xem'}
+            className="view-counter-badge"
+          >
+            <span aria-hidden="true" className="view-counter-icon">
+              <svg fill="none" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path
+                  d="M2 12s3.6-6 10-6 10 6 10 6-3.6 6-10 6-10-6-10-6Z"
+                  stroke="currentColor"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="1.7"
+                />
+                <circle cx="12" cy="12" r="3.1" stroke="currentColor" strokeWidth="1.7" />
+              </svg>
+            </span>
+            <span className="view-counter-value">{viewCount !== null ? formattedViewCount : '...'}</span>
+          </aside>
+        )}
+
         <header className="cyber-topbar">
           <a className="brand-mark" href="#home">
             {firstName}.

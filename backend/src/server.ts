@@ -1,10 +1,11 @@
 import cors from 'cors'
 import express, { type NextFunction, type Request, type Response } from 'express'
-import { profileData, type ProfileApiResponse } from '../../shared/profile.js'
+import { profileData, type ProfileApiResponse, type ProfileViewStats, type ProfileViewsResponse } from '../../shared/profile.js'
 import { createAdminSession, getAdminConfig, verifyAdminCredentials, verifyAdminToken } from './lib/adminAuth.js'
 import { loadLocalEnv } from './lib/loadEnv.js'
 import { loadProfile, resetProfile, saveProfile } from './lib/profileStore.js'
 import { parseProfileInput } from './lib/profileSchema.js'
+import { incrementProfileViews, loadProfileViews } from './lib/viewStore.js'
 
 loadLocalEnv()
 
@@ -25,6 +26,13 @@ function buildProfileResponse(
       source,
       generatedAt: new Date().toISOString(),
     },
+  }
+}
+
+function buildProfileViewsResponse(stats: ProfileViewStats): ProfileViewsResponse {
+  return {
+    ok: true,
+    ...stats,
   }
 }
 
@@ -71,6 +79,7 @@ app.get('/', (_request, response) => {
     docs: {
       health: '/health',
       profile: '/api/profile',
+      profileViews: '/api/profile/views',
       adminLogin: '/api/admin/login',
       adminSession: '/api/admin/session',
     },
@@ -90,6 +99,18 @@ app.get(['/profile', '/api/profile'], async (_request, response) => {
   const profile = await loadProfile()
 
   response.json(buildProfileResponse('railway-backend', profile))
+})
+
+app.get(['/profile/views', '/api/profile/views'], async (_request, response) => {
+  const stats = await loadProfileViews()
+
+  response.json(buildProfileViewsResponse(stats))
+})
+
+app.post(['/profile/views', '/api/profile/views'], async (_request, response) => {
+  const stats = await incrementProfileViews()
+
+  response.json(buildProfileViewsResponse(stats))
 })
 
 app.post(['/admin/login', '/api/admin/login'], (request, response) => {

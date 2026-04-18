@@ -40,6 +40,8 @@ Useful endpoints:
 
 - `GET /health`
 - `GET /api/profile`
+- `GET /api/profile/views`
+- `POST /api/profile/views`
 - `POST /api/admin/login`
 - `GET /api/admin/session`
 - `PUT /api/admin/profile`

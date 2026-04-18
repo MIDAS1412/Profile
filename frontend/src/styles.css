@@ -104,6 +104,48 @@ img {
   color: var(--text);
 }
 
+.view-counter-badge {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 18;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0.85rem 1rem;
+  border: 1px solid rgba(255, 81, 54, 0.2);
+  border-radius: 999px;
+  background: rgba(10, 10, 12, 0.88);
+  box-shadow:
+    0 0 0 1px rgba(255, 81, 54, 0.08),
+    0 20px 44px rgba(0, 0, 0, 0.34);
+  backdrop-filter: blur(16px);
+}
+
+.view-counter-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  background: rgba(255, 81, 54, 0.14);
+  color: #ffb5a6;
+}
+
+.view-counter-icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.view-counter-value {
+  min-width: 3ch;
+  color: #fff4f0;
+  font-family: 'Orbitron', sans-serif;
+  font-size: 1rem;
+  line-height: 1;
+}
+
 .section-anchor {
   scroll-margin-top: 120px;
 }
@@ -1008,6 +1050,12 @@ img {
   .hero-actions > * {
     width: 100%;
     text-align: center;
+  }
+
+  .view-counter-badge {
+    right: 14px;
+    bottom: 14px;
+    padding: 0.75rem 0.9rem;
   }
 
   .device-frame {
