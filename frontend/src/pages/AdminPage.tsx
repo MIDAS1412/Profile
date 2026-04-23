@@ -1,7 +1,13 @@
 import { type FormEvent, useEffect, useState } from 'react'
 import { Shell } from '../components/Shell'
 import { buildApiUrl } from '../config/api'
-import type { ProfileApiResponse, ProfileResponse } from '../types'
+import type {
+  ProfileAnalyticsBucket,
+  ProfileAnalyticsResponse,
+  ProfileApiResponse,
+  ProfileResponse,
+  ProfileVisitEntry,
+} from '../types'
 
 export const ADMIN_ROUTE = '/admin-midas-1420'
 
@@ -11,6 +17,8 @@ type StatusMessage = {
   tone: 'success' | 'error'
   message: string
 }
+
+type BusyState = 'idle' | 'login' | 'logout' | 'reset' | 'save' | 'refresh-analytics'
 
 type AdminSessionResponse = {
   ok: true
@@ -47,6 +55,53 @@ function stripProfileMeta(payload: ProfileResponse & { _meta?: unknown }) {
   const { _meta: _discard, ...profile } = payload
 
   return profile as ProfileResponse
+}
+
+function formatDateTime(value: string | null) {
+  if (!value) {
+    return 'Chua co du lieu'
+  }
+
+  const timestamp = Date.parse(value)
+
+  if (!Number.isFinite(timestamp)) {
+    return value
+  }
+
+  return new Intl.DateTimeFormat('vi-VN', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  }).format(new Date(timestamp))
+}
+
+function formatNumber(value: number) {
+  return new Intl.NumberFormat('vi-VN').format(value)
+}
+
+function formatBucketLabel(bucket: ProfileAnalyticsBucket) {
+  return `${bucket.label} · ${formatNumber(bucket.count)}`
+}
+
+function formatVisitLocation(visit: ProfileVisitEntry) {
+  const locationParts = [visit.location.city, visit.location.region, visit.location.country].filter(Boolean)
+
+  return locationParts.length > 0 ? locationParts.join(', ') : 'Unknown'
+}
+
+function formatVisitDevice(visit: ProfileVisitEntry) {
+  return [visit.deviceLabel, visit.browser, visit.os].filter(Boolean).join(' / ')
+}
+
+function formatReferrerHost(referrer: string | null) {
+  if (!referrer) {
+    return 'Direct'
+  }
+
+  try {
+    return new URL(referrer).hostname.replace(/^www\./i, '')
+  } catch {
+    return referrer
+  }
 }
 
 async function requestJson<T>(path: string, init: RequestInit = {}, token?: string): Promise<T> {
@@ -92,9 +147,10 @@ export function AdminPage() {
   )
   const [authMessage, setAuthMessage] = useState<string | null>(null)
   const [status, setStatus] = useState<StatusMessage | null>(null)
-  const [busy, setBusy] = useState<'idle' | 'login' | 'logout' | 'reset' | 'save'>('idle')
+  const [busy, setBusy] = useState<BusyState>('idle')
   const [editorValue, setEditorValue] = useState('')
   const [sessionInfo, setSessionInfo] = useState<AdminSessionResponse | null>(null)
+  const [analytics, setAnalytics] = useState<ProfileAnalyticsResponse | null>(null)
   const [loginForm, setLoginForm] = useState({
     email: '',
     password: '',
@@ -106,6 +162,7 @@ export function AdminPage() {
     if (!token) {
       setAuthState('logged-out')
       setSessionInfo(null)
+      setAnalytics(null)
       setEditorValue('')
       return () => {
         cancelled = true
@@ -117,12 +174,11 @@ export function AdminPage() {
       setAuthMessage(null)
 
       try {
-        const session = await requestJson<AdminSessionResponse>('/admin/session', {}, token ?? undefined)
-        const currentProfile = await requestJson<ProfileApiResponse>(
-          '/admin/profile',
-          {},
-          token ?? undefined,
-        )
+        const [session, currentProfile, currentAnalytics] = await Promise.all([
+          requestJson<AdminSessionResponse>('/admin/session', {}, token ?? undefined),
+          requestJson<ProfileApiResponse>('/admin/profile', {}, token ?? undefined),
+          requestJson<ProfileAnalyticsResponse>('/admin/analytics', {}, token ?? undefined),
+        ])
 
         if (cancelled) {
           return
@@ -130,6 +186,7 @@ export function AdminPage() {
 
         setSessionInfo(session)
         setEditorValue(JSON.stringify(stripProfileMeta(currentProfile), null, 2))
+        setAnalytics(currentAnalytics)
         setAuthState('ready')
       } catch (error) {
         if (cancelled) {
@@ -139,6 +196,7 @@ export function AdminPage() {
         persistToken(null)
         setToken(null)
         setSessionInfo(null)
+        setAnalytics(null)
         setAuthState('logged-out')
         setAuthMessage(error instanceof Error ? error.message : 'Admin session expired.')
       }
@@ -196,6 +254,7 @@ export function AdminPage() {
       persistToken(null)
       setToken(null)
       setSessionInfo(null)
+      setAnalytics(null)
       setBusy('idle')
       setAuthMessage(null)
     }
@@ -267,6 +326,31 @@ export function AdminPage() {
     }
   }
 
+  async function handleRefreshAnalytics() {
+    if (!token) {
+      return
+    }
+
+    setBusy('refresh-analytics')
+    setStatus(null)
+
+    try {
+      const nextAnalytics = await requestJson<ProfileAnalyticsResponse>('/admin/analytics', {}, token)
+      setAnalytics(nextAnalytics)
+      setStatus({
+        tone: 'success',
+        message: 'Da tai lai du lieu analytics.',
+      })
+    } catch (error) {
+      setStatus({
+        tone: 'error',
+        message: error instanceof Error ? error.message : 'Khong the tai analytics.',
+      })
+    } finally {
+      setBusy('idle')
+    }
+  }
+
   function handleFormatJson() {
     try {
       const parsedProfile = JSON.parse(editorValue) as ProfileResponse
@@ -282,6 +366,36 @@ export function AdminPage() {
       })
     }
   }
+
+  const analyticsCards = analytics
+    ? [
+        {
+          label: 'Tong luot xem',
+          value: formatNumber(analytics.summary.totalViews),
+          detail: 'Tong so views da ghi nhan.',
+        },
+        {
+          label: '24 gio qua',
+          value: formatNumber(analytics.summary.viewsLast24Hours),
+          detail: 'So luot xem trong cua so gan nhat.',
+        },
+        {
+          label: 'IP khac nhau',
+          value: formatNumber(analytics.summary.uniqueVisitors),
+          detail: 'Tinh tren tap log hien dang luu.',
+        },
+        {
+          label: 'Recent log',
+          value: formatNumber(analytics.summary.trackedVisits),
+          detail: `Dang giu toi da ${formatNumber(analytics.summary.storageLimit)} luot gan nhat.`,
+        },
+        {
+          label: 'Lan cuoi',
+          value: formatDateTime(analytics.summary.lastViewedAt),
+          detail: 'Thoi diem view moi nhat.',
+        },
+      ]
+    : []
 
   return (
     <Shell accent="forest">
@@ -313,7 +427,7 @@ export function AdminPage() {
           <section className="panel loading-card">
             <p className="card-kicker">Admin session</p>
             <h1>Checking access...</h1>
-            <p>Validating the current token and loading the editable profile payload.</p>
+            <p>Validating the current token, loading the profile payload, and reading analytics.</p>
           </section>
         )}
 
@@ -323,7 +437,7 @@ export function AdminPage() {
             <h1>Sign in to open the profile admin.</h1>
             <p className="admin-copy">
               Only the configured admin account can open this page. Public visitors can still read the
-              profile, but they cannot change the data source.
+              profile, but they cannot change the data source or open the analytics dashboard.
             </p>
 
             <form className="admin-login-form" onSubmit={handleLogin}>
@@ -369,11 +483,11 @@ export function AdminPage() {
           <>
             <section className="panel admin-hero-panel">
               <div>
-                <p className="card-kicker">Editor</p>
-                <h1>Edit the full profile payload from one protected page.</h1>
+                <p className="card-kicker">Control room</p>
+                <h1>Edit the profile and review visitor traffic from one protected page.</h1>
                 <p className="admin-copy">
-                  Every field shown on the public profile is stored in this JSON. Edit the payload,
-                  format it, then save it back through the protected backend endpoint.
+                  The public eye counter still shows the total view count, while this admin page now keeps
+                  recent visit logs with IP, device, browser, referrer, and approximate location.
                 </p>
               </div>
 
@@ -384,6 +498,14 @@ export function AdminPage() {
                 <button className="ghost-button" disabled={busy === 'reset'} onClick={handleReset} type="button">
                   {busy === 'reset' ? 'Resetting...' : 'Reset to default'}
                 </button>
+                <button
+                  className="ghost-button"
+                  disabled={busy === 'refresh-analytics'}
+                  onClick={handleRefreshAnalytics}
+                  type="button"
+                >
+                  {busy === 'refresh-analytics' ? 'Refreshing...' : 'Refresh analytics'}
+                </button>
                 <button className="ghost-button" onClick={handleFormatJson} type="button">
                   Format JSON
                 </button>
@@ -391,10 +513,137 @@ export function AdminPage() {
 
               <div className="admin-session-strip">
                 <span>Signed in as {sessionInfo?.email ?? 'admin'}</span>
-                {sessionInfo?.expiresAt && <span>Session expires {new Date(sessionInfo.expiresAt).toLocaleString()}</span>}
+                {sessionInfo?.expiresAt && <span>Session expires {formatDateTime(sessionInfo.expiresAt)}</span>}
+                {analytics?.updatedAt && <span>Analytics updated {formatDateTime(analytics.updatedAt)}</span>}
               </div>
 
               {status && <p className={`admin-status admin-status-${status.tone}`}>{status.message}</p>}
+            </section>
+
+            <section className="panel admin-overview-panel">
+              <div className="admin-section-head">
+                <div>
+                  <p className="card-kicker">Analytics</p>
+                  <h2>Traffic overview</h2>
+                  <p>
+                    Geo data is approximate. It comes from proxy headers when available and falls back to IP
+                    lookup on the backend for public requests.
+                  </p>
+                </div>
+              </div>
+
+              {analytics ? (
+                <>
+                  <div className="admin-analytics-grid">
+                    {analyticsCards.map((card) => (
+                      <article className="admin-analytic-card" key={card.label}>
+                        <span>{card.label}</span>
+                        <strong>{card.value}</strong>
+                        <p>{card.detail}</p>
+                      </article>
+                    ))}
+                  </div>
+
+                  <div className="admin-insight-grid">
+                    <article className="admin-insight-card">
+                      <span>Top sources</span>
+                      <div className="admin-pill-list">
+                        {analytics.summary.topSources.length > 0 ? (
+                          analytics.summary.topSources.map((bucket) => (
+                            <span className="admin-pill" key={`source-${bucket.label}`}>
+                              {formatBucketLabel(bucket)}
+                            </span>
+                          ))
+                        ) : (
+                          <span className="admin-pill">Chua co nguon truy cap</span>
+                        )}
+                      </div>
+                    </article>
+
+                    <article className="admin-insight-card">
+                      <span>Top countries</span>
+                      <div className="admin-pill-list">
+                        {analytics.summary.topCountries.length > 0 ? (
+                          analytics.summary.topCountries.map((bucket) => (
+                            <span className="admin-pill" key={`country-${bucket.label}`}>
+                              {formatBucketLabel(bucket)}
+                            </span>
+                          ))
+                        ) : (
+                          <span className="admin-pill">Chua co du lieu vi tri</span>
+                        )}
+                      </div>
+                    </article>
+                  </div>
+                </>
+              ) : (
+                <p className="admin-empty-state">Analytics chua san sang.</p>
+              )}
+            </section>
+
+            <section className="panel admin-section-card">
+              <div className="admin-section-head">
+                <div>
+                  <p className="card-kicker">Recent visits</p>
+                  <h2>Tracked view log</h2>
+                  <p>
+                    Mỗi dòng là một lần icon con mắt được tăng. Dữ liệu gồm IP, nguồn vào, thiết bị, thời
+                    gian và vị trí gần đúng của người xem.
+                  </p>
+                </div>
+              </div>
+
+              {analytics && analytics.recentVisits.length > 0 ? (
+                <div className="admin-visit-table-wrap">
+                  <table className="admin-visit-table">
+                    <thead>
+                      <tr>
+                        <th>Time</th>
+                        <th>Source</th>
+                        <th>IP</th>
+                        <th>Location</th>
+                        <th>Device</th>
+                        <th>Path</th>
+                        <th>Referrer</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {analytics.recentVisits.map((visit) => (
+                        <tr key={visit.id}>
+                          <td>{formatDateTime(visit.viewedAt)}</td>
+                          <td>
+                            <div className="admin-table-stack">
+                              <strong>{visit.source}</strong>
+                              <span>{visit.location.source}</span>
+                            </div>
+                          </td>
+                          <td>{visit.ip}</td>
+                          <td>{formatVisitLocation(visit)}</td>
+                          <td>
+                            <div className="admin-table-stack">
+                              <strong>{visit.deviceType}</strong>
+                              <span>{formatVisitDevice(visit)}</span>
+                            </div>
+                          </td>
+                          <td>{visit.path}</td>
+                          <td>
+                            <div className="admin-table-stack">
+                              <strong>{formatReferrerHost(visit.referrer)}</strong>
+                              <span title={visit.referrer ?? undefined}>
+                                {visit.referrer ?? 'Direct / no referrer'}
+                              </span>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <p className="admin-empty-state">
+                  Chua co luot xem nao duoc ghi log. Mo profile page o tab khac de tao data test.
+                </p>
+              )}
             </section>
 
             <section className="panel admin-editor-panel">

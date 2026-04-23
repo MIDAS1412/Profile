@@ -59,6 +59,50 @@ export type ProfileViewStats = {
   updatedAt: string
 }
 
+export type ProfileVisitLocation = {
+  country: string | null
+  countryCode: string | null
+  region: string | null
+  city: string | null
+  source: 'edge-header' | 'geoip' | 'unknown'
+}
+
+export type ProfileVisitEntry = {
+  id: string
+  viewedAt: string
+  ip: string
+  path: string
+  referrer: string | null
+  source: string
+  userAgent: string
+  browser: string
+  os: string
+  deviceType: string
+  deviceLabel: string
+  location: ProfileVisitLocation
+}
+
+export type ProfileAnalyticsBucket = {
+  label: string
+  count: number
+}
+
+export type ProfileAnalyticsSummary = {
+  totalViews: number
+  trackedVisits: number
+  uniqueVisitors: number
+  viewsLast24Hours: number
+  lastViewedAt: string | null
+  storageLimit: number
+  topSources: ProfileAnalyticsBucket[]
+  topCountries: ProfileAnalyticsBucket[]
+}
+
+export type ProfileAnalytics = ProfileViewStats & {
+  recentVisits: ProfileVisitEntry[]
+  summary: ProfileAnalyticsSummary
+}
+
 export type ProfileResponse = {
   coverHeadline: string[]
   identity: {
@@ -94,6 +138,10 @@ export type ProfileApiResponse = ProfileResponse & {
 }
 
 export type ProfileViewsResponse = ProfileViewStats & {
+  ok: true
+}
+
+export type ProfileAnalyticsResponse = ProfileAnalytics & {
   ok: true
 }
 

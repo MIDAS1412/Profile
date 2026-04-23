@@ -786,7 +786,8 @@ img {
 .admin-login-card,
 .admin-hero-panel,
 .admin-editor-panel,
-.admin-section-card {
+.admin-section-card,
+.admin-overview-panel {
   padding: 30px;
 }
 
@@ -901,6 +902,129 @@ img {
   letter-spacing: -0.05em;
 }
 
+.admin-analytics-grid,
+.admin-insight-grid {
+  display: grid;
+  gap: 16px;
+}
+
+.admin-analytics-grid {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.admin-insight-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 18px;
+}
+
+.admin-analytic-card,
+.admin-insight-card {
+  border-radius: 26px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.admin-analytic-card {
+  display: grid;
+  gap: 10px;
+  padding: 22px;
+}
+
+.admin-analytic-card span,
+.admin-insight-card > span {
+  color: #ff9a83;
+  font-size: 0.78rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.admin-analytic-card strong {
+  font-family: 'Orbitron', sans-serif;
+  font-size: clamp(1.4rem, 2.4vw, 2.2rem);
+  line-height: 1;
+  color: #f7f8fb;
+}
+
+.admin-analytic-card p,
+.admin-insight-card p,
+.admin-empty-state {
+  margin: 0;
+  color: var(--muted);
+}
+
+.admin-insight-card {
+  padding: 20px;
+}
+
+.admin-pill-list {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+}
+
+.admin-pill {
+  padding: 0.7rem 0.95rem;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 81, 54, 0.18);
+  background: rgba(255, 81, 54, 0.08);
+}
+
+.admin-empty-state {
+  margin-top: 18px;
+}
+
+.admin-visit-table-wrap {
+  margin-top: 18px;
+  overflow-x: auto;
+  border-radius: 26px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.admin-visit-table {
+  width: 100%;
+  min-width: 1140px;
+  border-collapse: collapse;
+}
+
+.admin-visit-table th,
+.admin-visit-table td {
+  padding: 16px 18px;
+  text-align: left;
+  vertical-align: top;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.admin-visit-table th {
+  color: #ff9a83;
+  font-size: 0.8rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.admin-visit-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.admin-table-stack {
+  display: grid;
+  gap: 6px;
+  min-width: 180px;
+}
+
+.admin-table-stack strong {
+  color: #f7f8fb;
+  text-transform: capitalize;
+}
+
+.admin-table-stack span {
+  color: var(--muted);
+  font-size: 0.96rem;
+  word-break: break-word;
+}
+
 .admin-json-editor {
   min-height: 720px;
   resize: vertical;
@@ -952,6 +1076,11 @@ img {
   .admin-topbar {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .admin-analytics-grid,
+  .admin-insight-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .visual-badge-top {
@@ -1039,12 +1168,18 @@ img {
   .admin-login-card,
   .admin-hero-panel,
   .admin-editor-panel,
-  .admin-section-card {
+  .admin-section-card,
+  .admin-overview-panel {
     padding: 22px;
   }
 
   .admin-json-editor {
     min-height: 560px;
+  }
+
+  .admin-analytics-grid,
+  .admin-insight-grid {
+    grid-template-columns: 1fr;
   }
 
   .hero-actions > * {

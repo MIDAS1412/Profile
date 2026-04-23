@@ -13,6 +13,18 @@ const profileViewsEndpoint = buildApiUrl('/profile/views')
 let cachedViewCount: number | null = null
 let inflightViewsRequest: Promise<ProfileViewsResponse> | null = null
 
+function buildViewPayload() {
+  if (typeof window === 'undefined') {
+    return null
+  }
+
+  return JSON.stringify({
+    pagePath: `${window.location.pathname}${window.location.search}${window.location.hash}`,
+    pageUrl: window.location.href,
+    referrer: document.referrer || null,
+  })
+}
+
 async function requestProfileViews() {
   if (!profileViewsEndpoint) {
     throw new Error('Profile view endpoint is not available.')
@@ -30,13 +42,20 @@ async function requestProfileViews() {
     const hasRecordedView =
       typeof window !== 'undefined' && window.sessionStorage.getItem(PROFILE_VIEW_SESSION_KEY) === '1'
     const method = hasRecordedView ? 'GET' : 'POST'
-
-    inflightViewsRequest = fetch(profileViewsEndpoint, {
+    const headers: Record<string, string> = {
+      Accept: 'application/json',
+    }
+    const requestInit: RequestInit = {
       method,
-      headers: {
-        Accept: 'application/json',
-      },
-    })
+      headers,
+    }
+
+    if (method === 'POST') {
+      headers['Content-Type'] = 'application/json'
+      requestInit.body = buildViewPayload() ?? '{}'
+    }
+
+    inflightViewsRequest = fetch(profileViewsEndpoint, requestInit)
       .then(async (response) => {
         if (!response.ok) {
           throw new Error(`View request failed with status ${response.status}`)
